@@ -2,7 +2,9 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <title>むしから にげろ！</title>
 <style>
   html, body { margin: 0; height: 100%; overflow: hidden; background: #000; font-family: sans-serif; }
@@ -17,7 +19,13 @@
   h2 { margin: 16px 0 4px; font-size: 20px; color: #9fe39f; }
   ul { margin: 0; padding-left: 20px; }
   .tip { color: #ffe066; }
-  #play { margin-top: 12px; font-size: 22px; padding: 10px 24px; border-radius: 12px; border: none; background: #ffe066; cursor: pointer; }
+  .box { max-height: 92vh; overflow-y: auto; box-sizing: border-box; }
+  button { margin: 12px 8px 0 0; font-size: 22px; padding: 10px 24px; border-radius: 12px; border: none; background: #ffe066; cursor: pointer; }
+  #phone { background: #9fe39f; }
+  button.sub { font-size: 16px; background: #ddd; }
+  #padtest { position: fixed; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.85); color: #fff; }
+  #padtest.hidden { display: none; }
+  #padtest-out { font-size: 18px; white-space: pre-wrap; background: #111; padding: 12px; border-radius: 8px; min-height: 120px; }
 </style>
 <script type="importmap">
 {
@@ -45,8 +53,24 @@
       <li>左トリガー：はしる　／　右トリガー：もういちど</li>
       <li>ほんとうに しゃがむと しゃがめる！</li>
     </ul>
+    <h2>スマホ＋VRゴーグル</h2>
+    <ul>
+      <li>スマホを よこにして「スマホVRで あそぶ」を おす → ゴーグルに いれる</li>
+      <li>あたまを うごかすと みまわせる</li>
+      <li>リモコンの スティック：あるく　／　ボタン：しゃがむ・はしる・まえを むきなおす</li>
+    </ul>
     <p class="tip">しげみの なかで しゃがむと みつかりにくいよ。岩の うしろも いいね。</p>
     <button id="play">クリックして スタート</button>
+    <button id="phone">スマホVRで あそぶ</button>
+    <button id="padtest-btn" class="sub">コントローラーを ためす</button>
+  </div>
+</div>
+<div id="padtest" class="hidden">
+  <div class="box">
+    <h1 style="font-size:28px">コントローラーを ためす</h1>
+    <p>リモコンの スティックや ボタンを うごかしてみて。<br>ここに なにも でないときは、リモコンの「モード」を かえてみてね（せつめいしょを みてね）。</p>
+    <pre id="padtest-out"></pre>
+    <button id="padtest-close">とじる</button>
   </div>
 </div>
 <script type="module" src="./game.js"></script>

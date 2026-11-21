@@ -34,6 +34,13 @@ export const SETTINGS = {
   catchDistance: 0.8,    // これより ちかづかれたら つかまる
   showSightCone: true,   // むしの みえる はんいを じめんに ひょうじする（false で むずかしく）
 
+  // --- コントローラー（Bluetoothリモコン） ---
+  // ボタンの ばんごうは さいしょの がめんの「コントローラーを ためす」で しらべられる
+  padCrouchButton: 0,    // しゃがむ（おすたびに しゃがむ／たつ）
+  padRunButton: 1,       // はしる（おしている あいだ）
+  padActionButton: 2,    // もういちど
+  padRecenterButton: 3,  // いま むいている ほうを「まえ」に する
+
   // --- かくれる ---
   bushCrouchHide: 0.15,  // しげみで しゃがむと みつかる はやさが これくらいに なる
   bushStandHide: 0.7,    // しげみで たっているとき

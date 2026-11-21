@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { VRButton } from 'three/addons/webxr/VRButton.js';
 import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js';
+import { StereoEffect } from 'three/addons/effects/StereoEffect.js';
 import { SETTINGS as S } from './settings.js';
 
 const DEG = Math.PI / 180;
@@ -553,21 +554,142 @@ function drawHUD(info) {
 const keys = {};
 let pitch = 0;
 let started = false;
+let lastKey = '';
 const overlay = document.getElementById('overlay');
 
-addEventListener('keydown', e => { keys[e.code] = true; });
+addEventListener('keydown', e => {
+  keys[e.code] = true;
+  lastKey = `${e.code} (${e.key})`;
+  if (e.code === 'Space' || e.code === 'KeyX') crouchToggle = !crouchToggle;
+  if (e.code === 'KeyR') recenter();
+});
 addEventListener('keyup', e => { keys[e.code] = false; });
-overlay.addEventListener('click', () => {
+overlay.addEventListener('click', e => {
+  if (e.target.closest('#phone, #padtest-btn')) return;
   overlay.classList.add('hidden');
   started = true;
   startAudio();
   renderer.domElement.requestPointerLock?.()?.catch?.(() => {});
 });
 renderer.domElement.addEventListener('click', () => {
-  if (!renderer.xr.isPresenting) renderer.domElement.requestPointerLock?.()?.catch?.(() => {});
+  if (!renderer.xr.isPresenting && !phoneMode) renderer.domElement.requestPointerLock?.()?.catch?.(() => {});
 });
+
+// ---- スマホVRモード（ゴーグルに スマホを いれて あそぶ） ----
+let phoneMode = false;
+let gyro = null; // {alpha, beta, gamma}
+const stereo = new StereoEffect(renderer);
+const gyroQ = new THREE.Quaternion();
+const gyroEuler = new THREE.Euler();
+const q90 = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5));
+const qTmp = new THREE.Quaternion();
+const zAxis = new THREE.Vector3(0, 0, 1);
+
+function screenAngle() {
+  return (screen.orientation && screen.orientation.angle) || window.orientation || 0;
+}
+function updateGyroQ() {
+  if (!gyro) return false;
+  gyroEuler.set(gyro.beta * DEG, gyro.alpha * DEG, -gyro.gamma * DEG, 'YXZ');
+  gyroQ.setFromEuler(gyroEuler);
+  gyroQ.multiply(q90);
+  gyroQ.multiply(qTmp.setFromAxisAngle(zAxis, -screenAngle() * DEG));
+  return true;
+}
+// いま むいている ほうこうを「まえ（ゴールの ほう）」に する
+function recenter() {
+  if (!phoneMode || !updateGyroQ()) return;
+  const e = new THREE.Euler().setFromQuaternion(gyroQ, 'YXZ');
+  player.rotation.y = -e.y;
+}
+addEventListener('deviceorientation', e => {
+  if (e.alpha == null) return;
+  const first = !gyro;
+  gyro = { alpha: e.alpha, beta: e.beta, gamma: e.gamma };
+  if (first) recenter();
+});
+function fitSize() {
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  const w = phoneMode ? window.innerWidth / 2 : window.innerWidth;
+  camera.aspect = w / window.innerHeight;
+  camera.updateProjectionMatrix();
+  if (phoneMode) stereo.setSize(window.innerWidth, window.innerHeight);
+}
+document.getElementById('phone').addEventListener('click', async () => {
+  try {
+    if (typeof DeviceOrientationEvent !== 'undefined' && DeviceOrientationEvent.requestPermission) {
+      await DeviceOrientationEvent.requestPermission(); // iPhoneは きょかが ひつよう
+    }
+  } catch (err) { /* むしする */ }
+  document.documentElement.requestFullscreen?.()?.catch?.(() => {});
+  screen.orientation?.lock?.('landscape')?.catch?.(() => {});
+  navigator.wakeLock?.request?.('screen')?.catch?.(() => {}); // がめんが きえないように
+  phoneMode = true;
+  hud.scale.setScalar(0.7); // ゴーグルの はしは みにくいので ちいさめに
+  document.getElementById('VRButton')?.remove();
+  fitSize();
+  overlay.classList.add('hidden');
+  started = true;
+  startAudio();
+  recenter();
+});
+
+// ---- コントローラー（Bluetoothリモコン / ゲームパッド） ----
+let crouchToggle = false;
+let padPrev = [];
+function readPad() {
+  const out = { mx: 0, mz: 0, turn: 0, run: false, action: false, any: false, pad: null };
+  const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+  for (const gp of pads) {
+    if (!gp) continue;
+    out.pad = gp;
+    const pressed = i => !!(gp.buttons[i] && gp.buttons[i].pressed);
+    const down = i => pressed(i) && !padPrev[i];
+    out.mx = gp.axes[0] || 0;
+    out.mz = gp.axes[1] || 0;
+    if (gp.axes.length >= 4) out.turn = gp.axes[2] || 0;
+    // じゅうじキー（ある ばあい）
+    if (pressed(12)) out.mz = -1;
+    if (pressed(13)) out.mz = 1;
+    if (pressed(14)) out.mx = -1;
+    if (pressed(15)) out.mx = 1;
+    out.run = pressed(S.padRunButton);
+    out.action = pressed(S.padActionButton);
+    out.any = gp.buttons.some(b => b.pressed);
+    if (down(S.padCrouchButton)) crouchToggle = !crouchToggle;
+    if (down(S.padRecenterButton)) recenter();
+    padPrev = gp.buttons.map(b => b.pressed);
+    break;
+  }
+  return out;
+}
+
+// ---- コントローラーテスト がめん ----
+const padtest = document.getElementById('padtest');
+const padtestOut = document.getElementById('padtest-out');
+document.getElementById('padtest-btn').addEventListener('click', () => {
+  padtest.classList.remove('hidden');
+});
+document.getElementById('padtest-close').addEventListener('click', () => {
+  padtest.classList.add('hidden');
+});
+function updatePadTest() {
+  if (padtest.classList.contains('hidden')) return;
+  const pads = (navigator.getGamepads ? [...navigator.getGamepads()] : []).filter(Boolean);
+  const lines = [];
+  if (!pads.length) lines.push('ゲームパッド：みつからない（ボタンを どれか おしてみて）');
+  for (const gp of pads) {
+    lines.push(`ゲームパッド：${gp.id}`);
+    lines.push(`スティック：${gp.axes.map(a => a.toFixed(2)).join('  ')}`);
+    const on = gp.buttons.map((b, i) => (b.pressed ? i : null)).filter(i => i !== null);
+    lines.push(`おしている ボタン ばんごう：${on.length ? on.join(', ') : 'なし'}`);
+  }
+  lines.push(`さいごに おされた キー：${lastKey || 'なし'}`);
+  padtestOut.textContent = lines.join('\n');
+}
+
 document.addEventListener('pointerlockchange', () => {
-  if (!document.pointerLockElement && !renderer.xr.isPresenting) {
+  if (!document.pointerLockElement && !renderer.xr.isPresenting && !phoneMode) {
     started = false;
     overlay.querySelector('#play').textContent = 'クリックして つづける';
     overlay.classList.remove('hidden');
@@ -583,11 +705,7 @@ renderer.xr.addEventListener('sessionstart', () => {
   started = true;
   startAudio();
 });
-addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-});
+addEventListener('resize', fitSize);
 
 function readXRInput() {
   const out = { mx: 0, mz: 0, turn: 0, run: false, action: false };
@@ -651,6 +769,8 @@ function restart() {
   player.position.copy(START);
   player.rotation.y = 0;
   pitch = 0;
+  crouchToggle = false;
+  recenter();
   for (const b of bugs) b.reset();
   gameState = 'play';
   elapsed = 0;
@@ -671,16 +791,21 @@ function update(dt) {
     if (y > maxHeadY) maxHeadY = y;
     crouch = maxHeadY > 0.6 && y < maxHeadY * S.crouchRatio;
   } else {
+    const p = readPad();
+    mx = p.mx;
+    mz = p.mz;
+    turn = p.turn;
     if (keys.KeyW || keys.ArrowUp) mz -= 1;
     if (keys.KeyS || keys.ArrowDown) mz += 1;
     if (keys.KeyA || keys.ArrowLeft) mx -= 1;
     if (keys.KeyD || keys.ArrowRight) mx += 1;
-    run = keys.ShiftLeft || keys.ShiftRight;
-    action = keys.Enter;
-    const wantCrouch = keys.KeyC || keys.ControlLeft;
+    run = keys.ShiftLeft || keys.ShiftRight || p.run;
+    action = keys.Enter || p.action || (gameState !== 'play' && p.any);
+    const wantCrouch = keys.KeyC || keys.ControlLeft || crouchToggle;
     const h = wantCrouch ? 0.85 : 1.5;
     camera.position.y += (h - camera.position.y) * (1 - Math.exp(-10 * dt));
-    camera.rotation.set(pitch, 0, 0);
+    if (phoneMode && updateGyroQ()) camera.quaternion.copy(gyroQ); // スマホの むきで みまわす
+    else camera.rotation.set(pitch, 0, 0);
     crouch = camera.position.y < 1.15;
   }
   const actionDown = action && !actionPrev;
@@ -777,7 +902,8 @@ function update(dt) {
 }
 
 function drawEnd() {
-  const again = renderer.xr.isPresenting ? '右トリガーで もういちど' : 'Enter で もういちど';
+  const again = renderer.xr.isPresenting ? '右トリガーで もういちど'
+    : phoneMode ? 'ボタンを おして もういちど' : 'Enter で もういちど';
   if (gameState === 'over') {
     drawHUD({ chase: true, aw: 1, st: '', big: 'つかまった…', bigColor: '#ff5050', small: [again] });
   } else if (gameState === 'clear') {
@@ -795,7 +921,9 @@ const clock = new THREE.Clock();
 renderer.setAnimationLoop(() => {
   const dt = Math.min(clock.getDelta(), 0.05);
   if (started) update(dt);
-  renderer.render(scene, camera);
+  updatePadTest();
+  if (phoneMode && !renderer.xr.isPresenting) stereo.render(scene, camera);
+  else renderer.render(scene, camera);
 });
 
 // デバッグよう（ブラウザの コンソールから みられる）
