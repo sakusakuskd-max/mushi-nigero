@@ -557,13 +557,35 @@ let started = false;
 let lastKey = '';
 const overlay = document.getElementById('overlay');
 
+const keyNames = {}; // おされている キー（e.key で きろく）
+const keyIs = (e, setting) => [].concat(setting).includes((e.key || '').toLowerCase());
+let againPressed = false;
+
 addEventListener('keydown', e => {
   keys[e.code] = true;
-  lastKey = `${e.code} (${e.key})`;
-  if (e.code === 'Space' || e.code === 'KeyX') crouchToggle = !crouchToggle;
-  if (e.code === 'KeyR') recenter();
+  keyNames[(e.key || '').toLowerCase()] = true;
+  lastKey = `code=${e.code || '?'}  key=${e.key}  keyCode=${e.keyCode}`;
+  if (e.repeat) return; // おしっぱなしの くりかえしは むし
+  if (e.code === 'Space' || e.code === 'KeyX' || keyIs(e, S.keyCrouch)) crouchToggle = !crouchToggle;
+  if (e.code === 'KeyR' || keyIs(e, S.keyRecenter)) recenter();
+  if (keyIs(e, S.keyAgain)) againPressed = true;
+  if (started && gameState === 'play') {
+    if (keyIs(e, S.keyTurnRight)) snapTurn(-1);
+    if (keyIs(e, S.keyTurnLeft)) snapTurn(1);
+  }
 });
-addEventListener('keyup', e => { keys[e.code] = false; });
+addEventListener('keyup', e => {
+  keys[e.code] = false;
+  keyNames[(e.key || '').toLowerCase()] = false;
+});
+// いまの ばしょで くるっと むきを かえる（dir: 1=ひだり, -1=みぎ）
+function snapTurn(dir) {
+  camera.getWorldPosition(before);
+  player.rotation.y += dir * 30 * DEG;
+  camera.getWorldPosition(head);
+  player.position.x += before.x - head.x;
+  player.position.z += before.z - head.z;
+}
 overlay.addEventListener('click', e => {
   if (e.target.closest('#phone, #padtest-btn')) return;
   overlay.classList.add('hidden');
@@ -665,6 +687,16 @@ function readPad() {
 }
 
 // ---- コントローラーテスト がめん ----
+let lastPointer = '';
+let pointerCount = 0;
+for (const type of ['pointerdown', 'pointermove', 'wheel', 'touchstart']) {
+  addEventListener(type, e => {
+    pointerCount++;
+    const where = e.clientX != null ? ` x=${Math.round(e.clientX)} y=${Math.round(e.clientY)}` : '';
+    const kind = e.pointerType ? ` (${e.pointerType})` : '';
+    lastPointer = `${type}${kind}${where}  [${pointerCount}かいめ]`;
+  }, { passive: true });
+}
 const padtest = document.getElementById('padtest');
 const padtestOut = document.getElementById('padtest-out');
 document.getElementById('padtest-btn').addEventListener('click', () => {
@@ -685,6 +717,7 @@ function updatePadTest() {
     lines.push(`おしている ボタン ばんごう：${on.length ? on.join(', ') : 'なし'}`);
   }
   lines.push(`さいごに おされた キー：${lastKey || 'なし'}`);
+  lines.push(`マウス／タッチ：${lastPointer || 'なし'}`);
   padtestOut.textContent = lines.join('\n');
 }
 
@@ -799,8 +832,9 @@ function update(dt) {
     if (keys.KeyS || keys.ArrowDown) mz += 1;
     if (keys.KeyA || keys.ArrowLeft) mx -= 1;
     if (keys.KeyD || keys.ArrowRight) mx += 1;
-    run = keys.ShiftLeft || keys.ShiftRight || p.run;
-    action = keys.Enter || p.action || (gameState !== 'play' && p.any);
+    run = keys.ShiftLeft || keys.ShiftRight || p.run || keyNames[S.keyRun];
+    action = keys.Enter || p.action || (gameState !== 'play' && p.any) || againPressed;
+    againPressed = false;
     const wantCrouch = keys.KeyC || keys.ControlLeft || crouchToggle;
     const h = wantCrouch ? 0.85 : 1.5;
     camera.position.y += (h - camera.position.y) * (1 - Math.exp(-10 * dt));
@@ -822,11 +856,7 @@ function update(dt) {
   // --- むきをかえる（VR右スティック） ---
   if (Math.abs(turn) > 0.7 && !snapped) {
     snapped = true;
-    camera.getWorldPosition(before);
-    player.rotation.y -= Math.sign(turn) * 30 * DEG;
-    camera.getWorldPosition(head);
-    player.position.x += before.x - head.x;
-    player.position.z += before.z - head.z;
+    snapTurn(-Math.sign(turn));
   } else if (Math.abs(turn) < 0.3) snapped = false;
 
   // --- あるく ---

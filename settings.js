@@ -41,6 +41,15 @@ export const SETTINGS = {
   padActionButton: 2,    // もういちど
   padRecenterButton: 3,  // いま むいている ほうを「まえ」に する
 
+  // --- リモコンの キー（iPhoneで キーボードとして つながる リモコン） ---
+  // スティックの うえ・した・ひだり・みぎ は やじるしキーで うごく
+  keyCrouch: 'l',        // Aボタン：しゃがむ（おすたびに しゃがむ／たつ）
+  keyRun: 'k',           // Bボタン：はしる（おしている あいだ）
+  keyRecenter: 'u',      // Yボタン：いま むいている ほうを「まえ」に する
+  keyAgain: ['y', '1'],  // Xボタン・OKボタン：もういちど
+  keyTurnRight: 'g',     // みぎの ボタン：みぎを むく
+  keyTurnLeft: 'j',      // ひだりの ボタン：ひだりを むく
+
   // --- かくれる ---
   bushCrouchHide: 0.15,  // しげみで しゃがむと みつかる はやさが これくらいに なる
   bushStandHide: 0.7,    // しげみで たっているとき
