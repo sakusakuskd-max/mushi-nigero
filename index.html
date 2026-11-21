@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>むしから にげろ！</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #000; font-family: sans-serif; }
+  #overlay {
+    position: fixed; inset: 0; z-index: 10;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(0, 30, 10, 0.75); color: #fff; cursor: pointer;
+  }
+  #overlay.hidden { display: none; }
+  .box { max-width: 560px; padding: 24px 32px; background: rgba(0,0,0,0.5); border-radius: 16px; line-height: 1.6; }
+  h1 { margin: 0 0 8px; font-size: 40px; color: #ffe066; }
+  h2 { margin: 16px 0 4px; font-size: 20px; color: #9fe39f; }
+  ul { margin: 0; padding-left: 20px; }
+  .tip { color: #ffe066; }
+  #play { margin-top: 12px; font-size: 22px; padding: 10px 24px; border-radius: 12px; border: none; background: #ffe066; cursor: pointer; }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<div id="overlay">
+  <div class="box">
+    <h1>むしから にげろ！</h1>
+    <p>むしに みつからないように、きいろい ひかりの ゴールまで いこう！</p>
+    <h2>パソコン</h2>
+    <ul>
+      <li>W A S D：あるく　／　マウス：みまわす</li>
+      <li>Shift：はしる（足音で きづかれる！）</li>
+      <li>C：しゃがむ　／　Enter：もういちど</li>
+    </ul>
+    <h2>VR（したの「ENTER VR」ボタン）</h2>
+    <ul>
+      <li>左スティック：あるく　／　右スティック：むきをかえる</li>
+      <li>左トリガー：はしる　／　右トリガー：もういちど</li>
+      <li>ほんとうに しゃがむと しゃがめる！</li>
+    </ul>
+    <p class="tip">しげみの なかで しゃがむと みつかりにくいよ。岩の うしろも いいね。</p>
+    <button id="play">クリックして スタート</button>
+  </div>
+</div>
+<script type="module" src="./game.js"></script>
+</body>
+</html>
