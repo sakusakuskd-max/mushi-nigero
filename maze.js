@@ -78,19 +78,32 @@ const WALL = 1, OPEN = 0, FAKE = 2;
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 const grid = Array.from({ length: W }, () => Array(W).fill(WALL));
 {
-  const visited = new Set([`0,${N - 1}`]);
-  const stack = [[0, N - 1]];
-  grid[2 * (N - 1) + 1][1] = OPEN;
-  while (stack.length) {
-    const [cx, cz] = stack[stack.length - 1];
-    const next = DIRS.map(([dx, dz]) => [cx + dx, cz + dz, dx, dz])
-      .filter(([x, z]) => x >= 0 && z >= 0 && x < N && z < N && !visited.has(`${x},${z}`));
-    if (!next.length) { stack.pop(); continue; }
-    const [nx, nz, dx, dz] = next[Math.floor(rand() * next.length)];
-    grid[2 * cz + 1 + dz][2 * cx + 1 + dx] = OPEN;
-    grid[2 * nz + 1][2 * nx + 1] = OPEN;
-    visited.add(`${nx},${nz}`);
-    stack.push([nx, nz]);
+  // わかれみちが おおくなる つくりかた（ランダムに まわりへ ひろげていく）
+  const inMaze = new Set();
+  const frontier = [];
+  const addCell = (cx, cz) => {
+    inMaze.add(`${cx},${cz}`);
+    grid[2 * cz + 1][2 * cx + 1] = OPEN;
+    for (const [dx, dz] of DIRS) {
+      const nx = cx + dx, nz = cz + dz;
+      if (nx >= 0 && nz >= 0 && nx < N && nz < N && !inMaze.has(`${nx},${nz}`)) frontier.push([nx, nz, cx, cz]);
+    }
+  };
+  addCell(0, N - 1);
+  while (frontier.length) {
+    const i = Math.floor(rand() * frontier.length);
+    const [cx, cz, fx, fz] = frontier[i];
+    frontier[i] = frontier[frontier.length - 1];
+    frontier.pop();
+    if (inMaze.has(`${cx},${cz}`)) continue;
+    grid[cz + fz + 1][cx + fx + 1] = OPEN; // あいだの かべを こわす
+    addCell(cx, cz);
+  }
+  // ぐるっと まわれる みち（かべを すこし こわす）
+  for (let z = 1; z < W - 1; z++) {
+    for (let x = 1; x < W - 1; x++) {
+      if (grid[z][x] === WALL && (x % 2) !== (z % 2) && rand() < M.branches) grid[z][x] = OPEN;
+    }
   }
 }
 const START_T = { x: 1, z: W - 2 };
@@ -144,7 +157,7 @@ for (let z = 1; z < W; z += 2) {
       const pair = x % 2 === 0 ? [[x - 1, z], [x + 1, z]] : [[x, z - 1], [x, z + 1]];
       const [a, b] = pair;
       if (grid[a[1]][a[0]] !== OPEN || grid[b[1]][b[0]] !== OPEN) continue;
-      if (Math.abs(dist[a[1]][a[0]] - dist[b[1]][b[0]]) < 12) continue;
+      if (Math.abs(dist[a[1]][a[0]] - dist[b[1]][b[0]]) < 10) continue;
       cands.push({ x, z });
     }
   }
@@ -153,7 +166,8 @@ for (let z = 1; z < W; z += 2) {
 
 // ばしょ きめ：チェックポイント・トゲ・ほし
 const used = new Set([key(path[0]), key(path[1] || path[0]), key(path[L - 1])]);
-const checkpointTiles = [path[Math.floor(L / 3)], path[Math.floor((2 * L) / 3)]];
+const checkpointTiles = [];
+for (let i = 1; i <= M.checkpoints; i++) checkpointTiles.push(path[Math.floor((L * i) / (M.checkpoints + 1))]);
 checkpointTiles.forEach(t => used.add(key(t)));
 
 const trapDefs = [];
@@ -210,6 +224,21 @@ const ballRuns = [];
     if (r.some(t => taken.has(key(t)))) continue;
     r.forEach(t => taken.add(key(t)));
     ballRuns.push(r);
+  }
+  // トゲボールを よける「くぼみ」を ろうかの よこに つくる
+  for (const r of ballRuns) {
+    const horizontal = r[0].z === r[1].z;
+    const spots = r.length >= 7 ? [Math.floor(r.length / 3), Math.floor((2 * r.length) / 3)] : [Math.floor(r.length / 2)];
+    for (const si of spots) {
+      const t = r[si];
+      const sides = horizontal ? [[0, -1], [0, 1]] : [[-1, 0], [1, 0]];
+      for (const [dx, dz] of shuffle(sides)) {
+        const nx = t.x + dx, nz = t.z + dz;
+        if (nx < 1 || nz < 1 || nx > W - 2 || nz > W - 2) continue;
+        if (grid[nz][nx] === OPEN) break; // もう よけられる ばしょが ある
+        if (grid[nz][nx] === WALL) { grid[nz][nx] = OPEN; break; }
+      }
+    }
   }
 }
 
@@ -280,7 +309,7 @@ buildWalls(WALL, wallTex);
 buildWalls(FAKE, fakeTex);
 
 // トゲの わな
-const spikeGeo = new THREE.ConeGeometry(0.13, 0.6, 6);
+const spikeGeo = new THREE.ConeGeometry(T * 0.065, 0.5, 6);
 const spikeMat = new THREE.MeshLambertMaterial({ color: 0xcfd6dd });
 const plateMat = new THREE.MeshLambertMaterial({ color: 0x3a3a44 });
 const traps = trapDefs.map(d => {
@@ -292,10 +321,10 @@ const traps = trapDefs.map(d => {
   const spikes = new THREE.Group();
   for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) {
     const s = new THREE.Mesh(spikeGeo, spikeMat);
-    s.position.set((i - 1) * T / 3, 0.3, (j - 1) * T / 3);
+    s.position.set((i - 1) * T / 3, 0.25, (j - 1) * T / 3);
     spikes.add(s);
   }
-  spikes.position.y = -0.6;
+  spikes.position.y = -0.5;
   g.add(plate, spikes);
   scene.add(g);
   return { ...d, spikes, up: false };
@@ -304,7 +333,7 @@ const traps = trapDefs.map(d => {
 // トゲボール
 const ballMat = new THREE.MeshLambertMaterial({ color: 0x8b1e1e });
 const ballSpikeGeo = new THREE.ConeGeometry(0.09, 0.35, 6);
-const BALL_R = 0.45;
+const BALL_R = Math.min(0.45, T * 0.33);
 const balls = ballRuns.map((run, i) => {
   const g = new THREE.Group();
   g.add(new THREE.Mesh(new THREE.SphereGeometry(BALL_R, 16, 12), ballMat));
@@ -411,7 +440,7 @@ function drawHUD(info) {
   hctx.clearRect(0, 0, 1024, 512);
   hctx.textAlign = 'center';
   hctx.textBaseline = 'middle';
-  panel(232, 8, 560, 92);
+  panel(92, 8, 840, 92);
   hctx.fillStyle = '#fff';
   hctx.font = 'bold 34px sans-serif';
   hctx.fillText(info.top, 512, 40);
@@ -475,6 +504,11 @@ let pitch = 0;
 let started = false;
 let mapOn = false;
 let againPressed = false;
+let jumpPressed = false;
+let dashPressed = false;
+let jumpY = 0, jumpV = 0;     // ジャンプの たかさと はやさ
+let dashUntil = 0, dashReady = 0;
+const dashDir = new THREE.Vector3();
 const overlay = document.getElementById('overlay');
 
 addEventListener('keydown', e => {
@@ -482,6 +516,8 @@ addEventListener('keydown', e => {
   keyNames[(e.key || '').toLowerCase()] = true;
   if (e.repeat) return;
   if (keyIs(e, S.keyAgain) || e.code === 'KeyM' || e.code === 'Enter') againPressed = true;
+  if (keyIs(e, M.keyJump) || e.code === 'Space') jumpPressed = true;
+  if (keyIs(e, S.keyRun) || e.code === 'ShiftLeft' || e.code === 'ShiftRight') dashPressed = true;
   if (keyIs(e, S.keyRecenter) || e.code === 'KeyR') alignToCorridor();
   if (started && gameState === 'play') {
     if (keyIs(e, S.keyTurnRight) || e.code === 'KeyE') snapTurn(-1);
@@ -627,7 +663,9 @@ function readPad() {
     if (pressed(14)) out.mx = -1;
     if (pressed(15)) out.mx = 1;
     out.run = pressed(S.padRunButton);
-    out.again = down(S.padActionButton) || down(S.padCrouchButton);
+    if (down(S.padRunButton)) dashPressed = true;
+    if (down(S.padCrouchButton)) jumpPressed = true;
+    out.again = down(S.padActionButton);
     if (down(S.padRecenterButton)) alignToCorridor();
     padPrev = gp.buttons.map(b => b.pressed);
     break;
@@ -646,10 +684,11 @@ function readXRInput() {
     if (src.handedness === 'left') {
       out.mx = ax[0];
       out.mz = ax[1];
-      out.run = pressed(0) || pressed(3);
+      out.run = pressed(0) || pressed(3);   // ひだりトリガー：ダッシュ／はしる
     } else if (src.handedness === 'right') {
       out.turn = ax[0];
-      out.againHeld = pressed(0) || pressed(4);
+      out.jumpHeld = pressed(0);            // みぎトリガー：ジャンプ
+      out.againHeld = pressed(4) || pressed(5); // A・B：ちず／もういちど
     }
   }
   return out;
@@ -666,7 +705,7 @@ let t = 0, elapsed = 0, endTime = 0, hits = 0, invulnUntil = 0;
 let respawn = startTile;
 let msg = null; // {text, color, until}
 let snapped = false;
-let xrAgainPrev = false;
+let xrAgainPrev = false, xrJumpPrev = false, xrRunPrev = false;
 
 function solidAt(x, z) {
   const tt = tileOf(x, z);
@@ -718,6 +757,10 @@ function restart() {
   mapOn = false;
   msg = null;
   invulnUntil = 0;
+  jumpY = 0;
+  jumpV = 0;
+  dashUntil = 0;
+  player.position.y = 0;
 }
 restart();
 
@@ -733,6 +776,10 @@ function update(dt) {
     ({ mx, mz, run, turn } = xi);
     if (xi.againHeld && !xrAgainPrev) again = true;
     xrAgainPrev = !!xi.againHeld;
+    if (xi.jumpHeld && !xrJumpPrev) jumpPressed = true;
+    xrJumpPrev = !!xi.jumpHeld;
+    if (xi.run && !xrRunPrev) dashPressed = true;
+    xrRunPrev = !!xi.run;
   } else {
     const p = readPad();
     mx = p.mx;
@@ -768,22 +815,53 @@ function update(dt) {
   if (Math.abs(mx) < 0.15) mx = 0;
   if (Math.abs(mz) < 0.15) mz = 0;
   camera.getWorldPosition(head);
-  if (mx || mz) {
-    camera.getWorldDirection(fwd);
-    fwd.y = 0;
-    if (fwd.lengthSq() < 1e-6) fwd.set(0, 0, -1);
-    fwd.normalize();
-    right.set(-fwd.z, 0, fwd.x);
-    move.set(0, 0, 0).addScaledVector(fwd, -mz).addScaledVector(right, mx);
-    if (move.length() > 1) move.normalize();
-    const speed = run ? S.runSpeed : S.walkSpeed;
-    let dx = move.x * speed * dt, dz = move.z * speed * dt;
+  camera.getWorldDirection(fwd);
+  fwd.y = 0;
+  if (fwd.lengthSq() < 1e-6) fwd.set(0, 0, -1);
+  fwd.normalize();
+  right.set(-fwd.z, 0, fwd.x);
+  move.set(0, 0, 0).addScaledVector(fwd, -mz).addScaledVector(right, mx);
+  if (move.length() > 1) move.normalize();
+
+  // --- ダッシュ（いっしゅん すごく はやく すすむ） ---
+  if (dashPressed && t >= dashReady) {
+    dashDir.copy(move.lengthSq() > 0.01 ? move : fwd).normalize();
+    dashUntil = t + M.dashTime;
+    dashReady = t + M.dashCooldown;
+    beep([500, 900], 0.06, 'triangle', 0.08);
+  }
+  dashPressed = false;
+  const dashing = t < dashUntil;
+
+  // --- ジャンプ ---
+  if (jumpPressed && jumpY <= 0.001) {
+    jumpV = M.jumpPower;
+    beep([600, 1000], 0.07, 'sine', 0.1);
+  }
+  jumpPressed = false;
+  if (jumpY > 0 || jumpV > 0) {
+    jumpV -= 12 * dt;
+    jumpY = Math.max(0, jumpY + jumpV * dt);
+    if (jumpY === 0) jumpV = 0;
+  }
+  player.position.y = jumpY;
+
+  if (mx || mz || dashing) {
+    let dx, dz;
+    if (dashing) {
+      dx = dashDir.x * M.dashSpeed * dt;
+      dz = dashDir.z * M.dashSpeed * dt;
+    } else {
+      const speed = run ? S.runSpeed : S.walkSpeed;
+      dx = move.x * speed * dt;
+      dz = move.z * speed * dt;
+    }
     if (blocked(head.x + dx, head.z)) dx = 0;
     if (blocked(head.x + dx, head.z + dz)) dz = 0;
     player.position.x += dx;
     player.position.z += dz;
-    camera.getWorldPosition(head);
   }
+  camera.getWorldPosition(head);
   const pt = tileOf(head.x, head.z);
   for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
     if (seen[pt.z + dz] && seen[pt.z + dz][pt.x + dx] !== undefined) seen[pt.z + dz][pt.x + dx] = true;
@@ -793,9 +871,9 @@ function update(dt) {
   for (const tr of traps) {
     const c = (t * M.spikeSpeed / 3 + tr.phase) % 1;
     const up = c < 0.4;
-    let y = up ? 0 : -0.6;
+    let y = up ? 0 : -0.5;
     let shake = 0;
-    if (!up && c > 0.82) { y = -0.45; shake = Math.sin(t * 90) * 0.03; } // もうすぐ でるよ！
+    if (!up && c > 0.82) { y = -0.38; shake = Math.sin(t * 90) * 0.03; } // もうすぐ でるよ！
     tr.spikes.position.y += (y - tr.spikes.position.y) * (1 - Math.exp(-25 * dt));
     tr.spikes.position.x = shake;
     if (up && !tr.up) {
@@ -803,17 +881,26 @@ function update(dt) {
       if (d < 8) beep([1400, 2000], 0.04, 'square', 0.05);
     }
     tr.up = up;
-    if (tr.spikes.position.y > -0.25 && pt.x === tr.x && pt.z === tr.z) hurt();
+    if (tr.spikes.position.y > -0.2 && pt.x === tr.x && pt.z === tr.z && jumpY < 0.3) hurt();
   }
 
   // --- トゲボール ---
   for (const b of balls) {
-    let u = (t * M.ballSpeed / b.len + b.phase) % 2;
-    if (u > 1) u = 2 - u;
+    // はしっこで ballWait びょう とまって、また ころがる
+    const travel = b.len / M.ballSpeed;
+    const total = 2 * (travel + M.ballWait);
+    const s = (t + b.phase * total) % total;
+    let u;
+    if (s < M.ballWait) u = 0;
+    else if (s < M.ballWait + travel) u = (s - M.ballWait) / travel;
+    else if (s < 2 * M.ballWait + travel) u = 1;
+    else u = 1 - (s - 2 * M.ballWait - travel) / travel;
+    u = u * u * (3 - 2 * u); // うごきはじめと とまる ときは ゆっくり
     b.g.position.lerpVectors(b.a, b.b, u);
     if (b.horizontal) b.g.rotation.z = -b.g.position.x / BALL_R;
     else b.g.rotation.x = b.g.position.z / BALL_R;
-    if (Math.hypot(head.x - b.g.position.x, head.z - b.g.position.z) < BALL_R + PR + 0.1) hurt();
+    const near = Math.hypot(head.x - b.g.position.x, head.z - b.g.position.z) < BALL_R + PR + 0.05;
+    if (near && jumpY < 0.6) hurt(); // ジャンプで とびこえられる
   }
 
   // --- ほし ---
@@ -855,7 +942,7 @@ function drawStatus() {
   const got = stars.filter(s => s.got).length;
   const info = {
     top: `★ ${got}/${stars.length}　いたい ${hits}かい　${Math.floor(elapsed)}びょう`,
-    hint: 'X か OK：ちず　みぎ・ひだりの ボタン：まがる',
+    hint: 'A：ジャンプ　B：ダッシュ　X か OK：ちず　みぎ・ひだり：まがる',
   };
   if (mapOn && gameState === 'play') {
     const yaw = viewYaw();
