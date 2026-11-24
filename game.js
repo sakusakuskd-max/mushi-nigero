@@ -587,7 +587,7 @@ function snapTurn(dir) {
   player.position.z += before.z - head.z;
 }
 overlay.addEventListener('click', e => {
-  if (e.target.closest('#phone, #padtest-btn')) return;
+  if (e.target.closest('#phone, #padtest-btn, a')) return;
   overlay.classList.add('hidden');
   started = true;
   startAudio();
