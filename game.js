@@ -301,8 +301,14 @@ class Bug {
     sound.setNodeSource(filter);
     sound.setRefDistance(1.5);
     sound.setRolloffFactor(1.6);
-    sound.setVolume(0.35);
+    sound.setVolume(0);
     g.add(sound);
+    this.sound = sound;
+  }
+
+  // はおとを ならす／とめる（ふわっと かわる）
+  setBuzz(on) {
+    this.sound.gain.gain.setTargetAtTime(on ? 0.35 : 0, actx.currentTime, 0.1);
   }
 
   reset() {
@@ -948,9 +954,21 @@ function drawEnd() {
 
 // ============ まいフレーム ============
 const clock = new THREE.Clock();
+let buzzWasOn = false;
+// ほかの タブや アプリに きりかえたら おとを ぜんぶ とめる
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) actx.suspend();
+  else if (started) actx.resume();
+});
 renderer.setAnimationLoop(() => {
   const dt = Math.min(clock.getDelta(), 0.05);
   if (started) update(dt);
+  // あそんでいる ときだけ むしの はおとを ならす（ゲームオーバー・ゴール・ていしちゅうは しずかに）
+  const buzzOn = started && gameState === 'play';
+  if (buzzOn !== buzzWasOn) {
+    for (const b of bugs) b.setBuzz(buzzOn);
+    buzzWasOn = buzzOn;
+  }
   updatePadTest();
   if (phoneMode && !renderer.xr.isPresenting) stereo.render(scene, camera);
   else renderer.render(scene, camera);

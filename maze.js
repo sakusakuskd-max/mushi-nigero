@@ -971,6 +971,11 @@ function drawStatus() {
 
 // ============ まいフレーム ============
 const clock = new THREE.Clock();
+// ほかの タブや アプリに きりかえたら おとを とめる
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) actx.suspend();
+  else if (started) actx.resume();
+});
 renderer.setAnimationLoop(() => {
   const dt = Math.min(clock.getDelta(), 0.05);
   if (started) update(dt);
