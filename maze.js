@@ -253,14 +253,14 @@ function canvasTex(draw, size = 256) {
   return tex;
 }
 function drawBricks(g, s, base, cracks) {
-  g.fillStyle = '#d8c8a8';
+  g.fillStyle = '#c4c4c4';
   g.fillRect(0, 0, s, s);
   const rows = 8, bh = s / rows, bw = s / 4;
   for (let r = 0; r < rows; r++) {
     const off = (r % 2) * bw / 2;
     for (let c = -1; c < 5; c++) {
-      const l = 30 + Math.random() * 12;
-      g.fillStyle = `hsl(${base}, 45%, ${l}%)`;
+      const l = 90 + Math.random() * 8;
+      g.fillStyle = `hsl(${base}, 10%, ${l}%)`;
       g.fillRect(c * bw + off + 2, r * bh + 2, bw - 4, bh - 4);
     }
   }
