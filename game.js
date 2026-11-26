@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { VRButton } from 'three/addons/webxr/VRButton.js';
 import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js';
 import { StereoEffect } from 'three/addons/effects/StereoEffect.js';
+import { arrowMove, padStick } from './input.js';
 import { SETTINGS as S } from './settings.js';
 
 const DEG = Math.PI / 180;
@@ -673,14 +674,7 @@ function readPad() {
     out.pad = gp;
     const pressed = i => !!(gp.buttons[i] && gp.buttons[i].pressed);
     const down = i => pressed(i) && !padPrev[i];
-    out.mx = gp.axes[0] || 0;
-    out.mz = gp.axes[1] || 0;
     if (gp.axes.length >= 4) out.turn = gp.axes[2] || 0;
-    // じゅうじキー（ある ばあい）
-    if (pressed(12)) out.mz = -1;
-    if (pressed(13)) out.mz = 1;
-    if (pressed(14)) out.mx = -1;
-    if (pressed(15)) out.mx = 1;
     out.run = pressed(S.padRunButton);
     out.action = pressed(S.padActionButton);
     out.any = gp.buttons.some(b => b.pressed);
@@ -689,6 +683,10 @@ function readPad() {
     padPrev = gp.buttons.map(b => b.pressed);
     break;
   }
+  // スティック（どの コントローラーでも、どんな おくりかたでも）
+  const st = padStick();
+  out.mx = st.mx;
+  out.mz = st.mz;
   return out;
 }
 
@@ -834,10 +832,15 @@ function update(dt) {
     mx = p.mx;
     mz = p.mz;
     turn = p.turn;
-    if (keys.KeyW || keys.ArrowUp) mz -= 1;
-    if (keys.KeyS || keys.ArrowDown) mz += 1;
-    if (keys.KeyA || keys.ArrowLeft) mx -= 1;
-    if (keys.KeyD || keys.ArrowRight) mx += 1;
+    const ar = arrowMove(); // やじるしキー（リモコンの スティック）
+    mx += ar.mx;
+    mz += ar.mz;
+    if (keys.KeyW) mz -= 1;
+    if (keys.KeyS) mz += 1;
+    if (keys.KeyA) mx -= 1;
+    if (keys.KeyD) mx += 1;
+    mx = Math.max(-1, Math.min(1, mx));
+    mz = Math.max(-1, Math.min(1, mz));
     run = keys.ShiftLeft || keys.ShiftRight || p.run || keyNames[S.keyRun];
     action = keys.Enter || p.action || (gameState !== 'play' && p.any) || againPressed;
     againPressed = false;
