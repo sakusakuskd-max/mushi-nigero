@@ -1301,7 +1301,10 @@ function drawStatus() {
   const total = stars.length + doors.filter(d => d.content === 'item').length;
   const info = {
     top: `★ ${got}/${total}　いたい ${hits}かい　${Math.floor(elapsed)}びょう`,
-    hint: 'A：ジャンプ　B：ダッシュ　X か OK：ちず　みぎ・ひだり：まがる',
+    // パソコンの ときは キーボードの そうさを だす
+    hint: phoneMode || renderer.xr.isPresenting
+      ? 'A：ジャンプ　B：ダッシュ　X か OK：ちず　みぎ・ひだり：まがる'
+      : 'WASD：あるく　スペース：ジャンプ　Shift：ダッシュ　Q・E：まがる　M：ちず',
   };
   if (mapOn && gameState === 'play') {
     const yaw = viewYaw();
@@ -1319,7 +1322,7 @@ function drawStatus() {
     info.bigColor = '#ffe066';
     info.small = [
       `タイム ${Math.round(elapsed)}びょう　★ ${got}/${total}　いたい ${hits}かい${perfect}`,
-      'X か OK で もういちど',
+      phoneMode ? 'X か OK で もういちど' : 'M か Enter で もういちど',
     ];
   } else if (msg && t < msg.until) {
     info.big = msg.text;
